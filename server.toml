@@ -1,0 +1,17 @@
+type = "server"
+listen = ":9022"
+
+[[entry]]
+index = 0
+name = "zero"
+connect = "127.0.0.1:22"
+
+[[entry]]
+index = 1
+name = "first"
+connect = "127.0.1.1:22"
+
+[[entry]]
+index = 2
+name = "second"
+connect = "unix:ssh"
