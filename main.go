@@ -91,6 +91,8 @@ func readline(reader io.Reader) string {
 }
 
 func (c *config)Connect(conn net.Conn, name string) {
+    defer conn.Close()
+
     log.Printf("connecting to %s\n", name)
     for _, entry := range c.data.Entry {
 	if entry.Name == name {
@@ -125,7 +127,7 @@ func (c *config)HandleServer(conn net.Conn) {
 	return
     }
     // this should be an entry name
-    c.Connect(conn, name)
+    go c.Connect(conn, name)
 }
 
 func (c *config)DialToServer() (net.Conn, error) {
@@ -136,10 +138,11 @@ func (c *config)HandleClient(conn net.Conn) {
     server, err := c.DialToServer()
     if err != nil {
 	log.Printf("DialToServer %s: %v\n", c.data.Server, err)
+	conn.Close()
 	return
     }
-    defer server.Close()
 
+    // run in main thread
     line := readline(server)
     fmt.Printf("select server: %s\n", line)
     entries := strings.Split(line, " ")
@@ -162,14 +165,17 @@ func (c *config)HandleClient(conn net.Conn) {
     }
     server.Write([]byte(name + "\n"))
 
-    log.Println("session start")
-    iorelay.Relay(conn, server)
-    log.Println("session done")
+    go func() {
+	defer conn.Close()
+	defer server.Close()
+
+	log.Println("session start")
+	iorelay.Relay(conn, server)
+	log.Println("session done")
+    }()
 }
 
 func (c *config)Handler(conn net.Conn) {
-    defer conn.Close()
-
     switch c.data.Type {
     case "server": c.HandleServer(conn)
     case "client": c.HandleClient(conn)
@@ -184,7 +190,7 @@ func (c *config)Serv() {
 	    // something wrong
 	    continue
 	}
-	go c.Handler(conn)
+	c.Handler(conn)
     }
 }
 
