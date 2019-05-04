@@ -13,6 +13,7 @@ import (
 
     "github.com/BurntSushi/toml"
     "github.com/hshimamoto/go-iorelay"
+    "github.com/hshimamoto/go-session"
 )
 
 type entry struct {
@@ -49,30 +50,13 @@ func (c *config)Load() {
 }
 
 func (c *config)SetupListener() error {
-    addr := c.data.Listen
-    a := strings.SplitN(addr, ":", 2)
-    proto := "tcp"
-    if a[0] == "unix" {
-	proto = "unix"
-	addr = a[1]
-    }
-    l, err := net.Listen(proto, addr)
+    l, err := session.Listen(c.data.Listen)
     if err != nil {
-	log.Printf("Listen %s: %v\n", addr, err)
+	log.Printf("Listen %s: %v\n", c.data.Listen, err)
 	return err
     }
     c.l = l
     return nil
-}
-
-func dialto(addr string) (net.Conn, error) {
-    a := strings.SplitN(addr, ":", 2)
-    proto := "tcp"
-    if a[0] == "unix" {
-	proto = "unix"
-	addr = a[1]
-    }
-    return net.Dial(proto, addr)
 }
 
 func readline(reader io.Reader) string {
@@ -97,7 +81,7 @@ func (c *config)Connect(conn net.Conn, name string) {
     for _, entry := range c.data.Entry {
 	if entry.Name == name {
 	    log.Printf("try to connect %s\n", entry.Connect)
-	    fwd, err := dialto(entry.Connect)
+	    fwd, err := session.Dial(entry.Connect)
 	    if err != nil {
 		log.Printf("failed %v\n", err)
 		return
@@ -130,14 +114,10 @@ func (c *config)HandleServer(conn net.Conn) {
     go c.Connect(conn, name)
 }
 
-func (c *config)DialToServer() (net.Conn, error) {
-    return dialto(c.data.Server)
-}
-
 func (c *config)HandleClient(conn net.Conn) {
-    server, err := c.DialToServer()
+    server, err := session.Dial(c.data.Server)
     if err != nil {
-	log.Printf("DialToServer %s: %v\n", c.data.Server, err)
+	log.Printf("Dial %s: %v\n", c.data.Server, err)
 	conn.Close()
 	return
     }
